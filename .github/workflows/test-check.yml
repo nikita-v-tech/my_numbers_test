@@ -1,0 +1,54 @@
+name: Test Check and Push to Main
+
+on:
+  push:
+    branches:
+      - source
+
+jobs:
+  run-tests-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Стягиваем код из ветки source
+      - name: Checkout source branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 2. Устанавливаем Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # 3. Запускаем тесты
+      - name: Run Tests
+        run: npm test
+
+      # 4. Если тесты прошли затираем решение и готовим main 
+      - name: Prepare main branch and strip solution
+        if: success()
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Перезаписываем файл, стирая решение и оставляя только пустую функцию для студента
+          echo -e "export function multiply(a, b) {\n  // Напишите ваше решение здесь\n}" > src/index.js
+          
+          # Пересоздаем ветку main локально с нуля
+          git checkout --orphan main
+          
+          # Добавляем файлы, которые должны быть в main
+          git add src/index.js src/index.test.js package.json README.md .github/workflows/test-check.yml
+          
+          git commit -m "chore: auto-generate classroom task"
+
+      # 5. Форсированно пушим очищенную ветку main на GitHub
+      - name: Push to main branch
+        if: success()
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: main
+          force: true
